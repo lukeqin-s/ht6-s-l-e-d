@@ -7,6 +7,7 @@ import numpy as np
 from ultralytics import YOLO
 from trilobot import Trilobot
 import mediapipe as mp
+from product_checker import start_voice_assistant # pass Detected Product and Detected Price into start_voice_assistant
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
