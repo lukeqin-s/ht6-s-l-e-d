@@ -4,7 +4,7 @@ import pandas as pd
 
 def capture_image():
     #get image from external USB camera from cv2? 
-    camera_id = 1 #first external camera 
+    camera_id = 0 #first external camera 
 
     #open the camera 
     cap = cv2.VideoCapture(camera_id)
@@ -16,7 +16,7 @@ def capture_image():
     ret, frame = cap.read()
     if not ret:
         print("Error: No image captured")
-        return None
+        return None, None
     
     img_path = "fruit_image.jpg"
     #save the image 
@@ -34,8 +34,8 @@ def fruit_detect(frame, image_path):
         if bounding_boxes is not None: 
             for bounding_box in bounding_boxes:
                 #get bounding box cooordinates 
-                x1, y1, x2, y2 = map(int, bounding_box.xyxy[0].cpu.numpy()) 
-                confidence = bounding_box.conf[0].cpu.numpy()
+                x1, y1, x2, y2 = map(int, bounding_box.xyxy[0].cpu().numpy()) 
+                confidence = bounding_box.conf[0].cpu().numpy()
                 class_id = int(bounding_box.cls[0].cpu().numpy())
                 class_name = model.names[class_id]
 
@@ -55,31 +55,25 @@ def find_fruit(class_name, csv_path):
     #clean up data 
     df = pd.read_csv(csv_path)
     df_clean = df.drop(['date','atlantaretail','chicagoretail','losangelesretail','newyorkretail','averagespread'], axis = 1)
-    df_clean = df.to_csv("ProductPriceIndex.csv", index=False)
+    df_clean.to_csv("ProductPriceIndex.csv", index=False)
 
-    match = df_clean[df_clean['productname'].str.lower() == class_name.lower()]
-    if not match.empty:
-        print("Farm price:", match['farmprice'].values[0])
-        return match['farmprice'].values[0]
+    match = df_clean[df_clean['productname'].str == class_name]
+    if len(match) > 0:
+        print("Farm price:", match[0]['farmprice'])
+        return match[0]['farmprice']
     else: 
         print("The price item does not exist.")
 
 
 def main():
-    frame, image_path = capture_image()
+    image_path, frame = capture_image()
     if frame is None:
         return
 
     class_name = fruit_detect(frame, image_path)
     if class_name:
-        find_fruit(class_name, "original_dataset.csv")
+        find_fruit(class_name, "ProductPriceIndex.csv")
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 
