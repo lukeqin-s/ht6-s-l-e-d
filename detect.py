@@ -8,6 +8,7 @@ from ultralytics import YOLO
 from trilobot import Trilobot
 import mediapipe as mp
 from product_checker import start_voice_assistant # pass Detected Product and Detected Price into start_voice_assistant
+from fruit_detect import main_detect
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -103,7 +104,7 @@ first_person_box = None
 first_person_lost_count = 0
 FIRST_PERSON_LOST_MAX = 1  # frames to wait before resetting
 
-# --- MediaPipe Hand Detection every 5 frames ---
+# --- MediaPipe Hand Detection every 10 frames ---
 while True:
     # Get frame from source
     if source_type == 'video' or source_type == 'usb':
@@ -193,7 +194,7 @@ while True:
                 min_dist = dist
                 best_box = box
         # If a match is close enough, keep tracking
-        if best_box is not None and min_dist < 0.15 * frame.shape[1]:
+        if best_box is not None and min_dist < 0.25 * frame.shape[1]:
             person_box = best_box
             first_person_box = best_box
             first_person_lost_count = 0
@@ -208,13 +209,29 @@ while True:
     # --- Robot following logic ---
     # If a large hand is detected, stop the robot and skip person following
     if hand_detected:
-        robot.coast()
+        
+        
         robot.stop()
-        if hand_box is not None:
-            cv2.rectangle(frame, (hand_box[0], hand_box[1]), (hand_box[2], hand_box[3]), (255,0,0), 2)
-            cv2.putText(frame, 'Hand Detected', (hand_box[0], hand_box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,0,0), 2)
+        time.sleep(3)
+        
+        #if hand_box is not None:
+        cv2.rectangle(frame, (hand_box[0], hand_box[1]), (hand_box[2], hand_box[3]), (255,0,0), 2)
+        
+        cv2.putText(frame, 'Hand Detected', (hand_box[0], hand_box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,0,0), 2)
 
-        # function here
+        class_name, price = main_detect()
+        
+        if class_name is not None and price is not None:
+            start_voice_assistant(classname, price)
+            
+       
+            
+        hand_detected = False
+        hand_box = None
+        hand_box_area = 0
+        last_hand_detected = False
+
+        
         
     elif person_box is not None:
         last_person_time = time.time()  # Update last seen time
@@ -236,27 +253,22 @@ while True:
             robot.stop()  # Person is close, stop
         else:
             if box_center_x < frame_center_x - center_thresh:
-                robot.coast()
-                robot.curve_forward_left(0.75)  # Person left, turn left
+                robot.curve_forward_left(0.80)  # Person left, turn left
             elif box_center_x > frame_center_x + center_thresh:
-                robot.coast()
-                robot.curve_forward_right(0.75)  # Person right, turn right
+                robot.curve_forward_right(0.80)  # Person right, turn right
             else:
                 robot.forward(1.0)  # Person centered, go forward
     else:
         # If no person, check if it's time to spin
         if time.time() - last_person_time > 3.0:
             # Spin in the direction where the person was last seen
-            spin_mode = True
+            # spin_mode = True
             if last_seen_direction == 'left':
-                robot.coast()
-                robot.turn_left(0.72)
+                robot.curve_forward_left(0.75)
             elif last_seen_direction == 'right':
-                robot.coast()
-                robot.turn_right(0.72)
+                robot.curve_forward_right(0.75)
             else:
-                robot.coast()
-                robot.turn_right(0.72)  # Default to right if unknown
+                robot.curve_forward_right(0.75)  # Default to right if unknown
         else:
             robot.coast()
             robot.stop()  # No person, stop
@@ -277,6 +289,7 @@ while True:
     cv2.imshow('Robot Following', frame)
     key = cv2.waitKey(5)
     if key == ord('q') or key == ord('Q'):
+        robot.stop()
         break
 
 # Cleanup
