@@ -97,6 +97,12 @@ frame_count = 0
 last_hand_detected = False
 last_hand_box = None
 
+# --- Track the first detected person ---
+first_person_box = None
+first_person_lost_count = 0
+FIRST_PERSON_LOST_MAX = 1  # frames to wait before resetting
+
+# --- MediaPipe Hand Detection every 5 frames ---
 while True:
     # Get frame from source
     if source_type == 'video' or source_type == 'usb':
@@ -117,7 +123,7 @@ while True:
 
     # --- MediaPipe Hand Detection every 5 frames ---
     frame_count += 1
-    if frame_count % 5 == 0:
+    if frame_count % 10 == 0:
         hand_detected = False
         hand_box = None
         hand_box_area = 0
@@ -149,9 +155,8 @@ while True:
     results = model(frame, verbose=False)
     detections = results[0].boxes
 
-    # Find largest person
-    person_box = None
-    person_box_area = 0
+    # Find all people
+    people_boxes = []
     frame_center_x = frame.shape[1] // 2
     for i in range(len(detections)):
         classidx = int(detections[i].cls.item())
@@ -159,10 +164,45 @@ while True:
         if classname == 'person':
             xyxy = detections[i].xyxy.cpu().numpy().squeeze().astype(int)
             xmin, ymin, xmax, ymax = xyxy
-            area = (xmax - xmin) * (ymax - ymin)
-            if area > person_box_area:
-                person_box_area = area
-                person_box = (xmin, ymin, xmax, ymax)
+            people_boxes.append((xmin, ymin, xmax, ymax))
+
+    # --- First person tracking logic ---
+    def box_center(box):
+        xmin, ymin, xmax, ymax = box
+        return ((xmin + xmax) // 2, (ymin + ymax) // 2)
+
+    def box_distance(box1, box2):
+        c1 = box_center(box1)
+        c2 = box_center(box2)
+        return ((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) ** 0.5
+
+    person_box = None
+    if first_person_box is None and people_boxes:
+        # No person being tracked, pick the largest
+        person_box = max(people_boxes, key=lambda b: (b[2]-b[0])*(b[3]-b[1]))
+        first_person_box = person_box
+        first_person_lost_count = 0
+    elif first_person_box is not None:
+        # Try to match the original person
+        min_dist = float('inf')
+        best_box = None
+        for box in people_boxes:
+            dist = box_distance(box, first_person_box)
+            if dist < min_dist:
+                min_dist = dist
+                best_box = box
+        # If a match is close enough, keep tracking
+        if best_box is not None and min_dist < 0.15 * frame.shape[1]:
+            person_box = best_box
+            first_person_box = best_box
+            first_person_lost_count = 0
+        else:
+            # Person lost
+            first_person_lost_count += 1
+            if first_person_lost_count > FIRST_PERSON_LOST_MAX:
+                first_person_box = None
+                first_person_lost_count = 0
+    # else: no people, nothing to do
 
     # --- Robot following logic ---
     # If a large hand is detected, stop the robot and skip person following
@@ -172,6 +212,9 @@ while True:
         if hand_box is not None:
             cv2.rectangle(frame, (hand_box[0], hand_box[1]), (hand_box[2], hand_box[3]), (255,0,0), 2)
             cv2.putText(frame, 'Hand Detected', (hand_box[0], hand_box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,0,0), 2)
+
+        # function here
+        
     elif person_box is not None:
         last_person_time = time.time()  # Update last seen time
         spin_mode = False  # Stop spinning if we see a person
@@ -206,20 +249,30 @@ while True:
             spin_mode = True
             if last_seen_direction == 'left':
                 robot.coast()
-                robot.turn_left(0.75)
+                robot.turn_left(0.72)
             elif last_seen_direction == 'right':
                 robot.coast()
-                robot.turn_right(0.75)
+                robot.turn_right(0.72)
             else:
                 robot.coast()
-                robot.turn_right(0.75)  # Default to right if unknown
+                robot.turn_right(0.72)  # Default to right if unknown
         else:
             robot.coast()
             robot.stop()  # No person, stop
 
     # Show frame with bounding box for debug (optional)
-    if person_box is not None:
-        cv2.rectangle(frame, (person_box[0], person_box[1]), (person_box[2], person_box[3]), (0,255,0), 2)
+    # Draw all detected people in green
+    for box in people_boxes:
+        color = (0,255,0)  # green
+        thickness = 2
+        if person_box is not None and box == person_box:
+            color = (0,0,255)  # red for tracked person
+            thickness = 3
+        cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), color, thickness)
+    # Draw hand box if detected
+    if hand_box is not None and hand_detected:
+        cv2.rectangle(frame, (hand_box[0], hand_box[1]), (hand_box[2], hand_box[3]), (255,0,0), 2)
+        cv2.putText(frame, 'Hand Detected', (hand_box[0], hand_box[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,0,0), 2)
     cv2.imshow('Robot Following', frame)
     key = cv2.waitKey(5)
     if key == ord('q') or key == ord('Q'):
