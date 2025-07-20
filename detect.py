@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', required=True, help='Path to YOLO model file')
 parser.add_argument('--source', required=True, help='Image/video/camera source')
 parser.add_argument('--resolution', default=None, help='Resolution WxH (e.g. 640x480)')
+
 args = parser.parse_args()
 
 model_path = args.model
@@ -23,19 +24,20 @@ user_res = args.resolution
 
 # Check model file
 if not os.path.exists(model_path):
-    print('ERROR: Model path is invalid or model was not found.')
+    print('Model path is invalid.')
     sys.exit(0)
 
-# Load YOLO model
+# Load model
 model = YOLO(model_path, task='detect')
 labels = model.names
 
-# Determine source type
+# Source types
 img_ext_list = ['.jpg','.JPG','.jpeg','.JPEG','.png','.PNG','.bmp','.BMP']
+
 vid_ext_list = ['.avi','.mov','.mp4','.mkv','.wmv']
 
 if os.path.isdir(img_source):
-    print('Folder input not supported for robot following. Exiting.')
+    print('Input not supported.')
     sys.exit(0)
 elif os.path.isfile(img_source):
     _, ext = os.path.splitext(img_source)
@@ -53,7 +55,7 @@ elif 'picamera' in img_source:
     source_type = 'picamera'
     picam_idx = int(img_source[8:])
 else:
-    print(f'Input {img_source} is invalid. Please try again.')
+    print(f'Input {img_source} is invalid')
     sys.exit(0)
 
 # Parse resolution
