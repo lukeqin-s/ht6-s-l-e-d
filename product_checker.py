@@ -76,10 +76,17 @@ def run_farmers_market_assistant(product_name, price):
         analyze_product(product_name, price, user_question)
 
 # ========== Main Program ==========
-if __name__ == "__main__":
-    # Simulated product detection result (replace with your actual detection system output)
-    detected_product = "Honeycrisp Apple"
-    detected_price = "$2.50 per pound"
+# if __name__ == "__main__":
+#     # Simulated product detection result (replace with your actual detection system output)
+#     detected_product = "Honeycrisp Apple"
+#     detected_price = "$2.50 per pound"
 
-    print(f"[Detected Item]: {detected_product} | [Price]: {detected_price}")
-    run_farmers_market_assistant(detected_product, detected_price)
+#     print(f"[Detected Item]: {detected_product} | [Price]: {detected_price}")
+#     run_farmers_market_assistant(detected_product, detected_price)
+
+
+# Call this function to start the voice assistant with a product name and price 
+def start_voice_assistant(product_name, price):
+    print(f"[Detected Item]: {product_name} | [Price]: {price}")
+    run_farmers_market_assistant(product_name, price)
+
